@@ -5,33 +5,82 @@ Description: API for Sending Emails via SNS
 Resources:
   # API Gateway
   EmailApiGateway:
-    Type: AWS::ApiGateway::RestApi
+    Type: AWS::ApiGatewayV2::Api
     Properties:
       Name: EmailAPI
-      Description: API to send emails
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowCredentials: false
+        AllowHeaders:
+          - Content-Type
+          - X-Amz-Date
+          - Authorization
+          - X-Api-Key
+          - X-Amz-Security-Token
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        AllowOrigins:
+          - '*'
+        ExposeHeaders:
+          - Date
+          - x-api-id
+        MaxAge: 300
 
-  # API Gateway Resource
-  EmailApiResource:
-    Type: AWS::ApiGateway::Resource
+  # API Gateway Integration
+  EmailApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
     Properties:
-      ParentId: !GetAtt EmailApiGateway.RootResourceId
-      PathPart: send-email
-      RestApiId: !Ref EmailApiGateway
+      ApiId: !Ref EmailApiGateway
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub
+        - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendEmailLambda.Arn}/invocations
+        - SendEmailLambda: !GetAtt SendEmailLambda.Arn
+      PayloadFormatVersion: '2.0'
 
-  # API Gateway Method
-  EmailApiMethod:
-    Type: AWS::ApiGateway::Method
+  # API Gateway Route
+  EmailApiRoute:
+    Type: AWS::ApiGatewayV2::Route
     Properties:
-      AuthorizationType: NONE
-      HttpMethod: POST
-      ResourceId: !Ref EmailApiResource
-      RestApiId: !Ref EmailApiGateway
-      Integration:
-        IntegrationHttpMethod: POST
-        Type: AWS_PROXY
-        Uri: !Sub
-          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendEmailLambda.Arn}/invocations
-          - SendEmailLambda: !GetAtt SendEmailLambda.Arn
+      ApiId: !Ref EmailApiGateway
+      RouteKey: POST /send-email
+      Target: !Sub integrations/${EmailApiIntegration.IntegrationId}
+
+  # API Gateway Stage
+  EmailApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref EmailApiGateway
+      StageName: prod
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 10
+
+  # Lambda Function
+  SendEmailLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt EmailLambdaRole.Arn
+      CodeUri: send-email/
+      Runtime: nodejs18.x
+      MemorySize: 128
+      Timeout: 5
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref EmailSNSTopic
+
+  # SNS Topic
+  EmailSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: samuelgiordano@live.com
 
   # IAM Role for Lambda
   EmailLambdaRole:
@@ -66,43 +115,14 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
-  # Lambda Function
-  SendEmailLambda:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: index.handler
-      Role: !GetAtt EmailLambdaRole.Arn
-      CodeUri: send-email/
-      Runtime: nodejs18.x
-      MemorySize: 128
-      Timeout: 5
-      Environment:
-        Variables:
-          SNS_TOPIC_ARN: !Ref EmailSNSTopic
-
-  # SNS Topic
-  EmailSNSTopic:
-    Type: AWS::SNS::Topic
-    Properties:
-      Subscription:
-        - Protocol: email
-          Endpoint: samuelgiordano@live.com
-
-  # API Gateway Deployment with Throttling
+  # API Gateway Deployment
   EmailApiGatewayDeployment:
-    Type: AWS::ApiGateway::Deployment
+    Type: AWS::ApiGatewayV2::Deployment
     Properties:
-      RestApiId: !Ref EmailApiGateway
-      StageName: prod
-      Description: Deployment stage with rate limiting
-      StageDescription:
-        MethodSettings:
-          - ResourcePath: "/*"
-            HttpMethod: "*"
-            ThrottlingBurstLimit: 5
-            ThrottlingRateLimit: 10
+      ApiId: !Ref EmailApiGateway
     DependsOn:
-      - EmailApiMethod
+      - EmailApiRoute
+      - EmailApiIntegration
 
   # Lambda Invoke Permission
   LambdaInvokePermission:
