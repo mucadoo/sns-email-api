@@ -1,15 +1,43 @@
 const aws = require('aws-sdk');
 const sns = new aws.SNS();
+const validator = require('validator');
 
 exports.handler = async (event) => {
+  console.log('Lambda function invoked');
+
   try {
+    const body = JSON.parse(event.body);
+
+    // Validate inputs
+    if (!validator.isEmail(body.email)) {
+      throw new Error('Invalid email address');
+    }
+    if (!validator.isLength(body.name, { min: 1, max: 100 })) {
+      throw new Error('Invalid name');
+    }
+    if (!validator.isLength(body.subject, { min: 1, max: 100 })) {
+      throw new Error('Invalid subject');
+    }
+    if (!validator.isLength(body.message, { min: 1, max: 1000 })) {
+      throw new Error('Invalid message');
+    }
+
     const message = {
-      subject: 'Contact Form Submission',
-      body: `Name: ${event.name}\nEmail: ${event.email}\nMessage: ${event.message}`
+      default: `
+        Contact Form Submission
+        -------------------------
+        Name: ${validator.escape(body.name)}
+        Email: ${validator.escape(body.email)}
+        Subject: ${validator.escape(body.subject)}
+        Message: ${validator.escape(body.message)}
+      `,
     };
+
     const params = {
-      Message: JSON.stringify(message),
-      TopicArn: process.env.SNS_TOPIC_ARN
+      Message: message,
+      TopicArn: process.env.SNS_TOPIC_ARN,
+      Subject: 'New Contact Form Submission',
+      MessageStructure: 'raw'
     };
 
     await sns.publish(params).promise();

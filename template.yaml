@@ -3,12 +3,14 @@ Transform: 'AWS::Serverless-2016-10-31'
 Description: API for Sending Emails via SNS
 
 Resources:
+  # API Gateway
   EmailApiGateway:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: EmailAPI
       Description: API to send emails
 
+  # API Gateway Resource
   EmailApiResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -16,6 +18,7 @@ Resources:
       PathPart: send-email
       RestApiId: !Ref EmailApiGateway
 
+  # API Gateway Method
   EmailApiMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -30,6 +33,7 @@ Resources:
           - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendEmailLambda.Arn}/invocations
           - SendEmailLambda: !GetAtt SendEmailLambda.Arn
 
+  # IAM Role for Lambda
   EmailLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -62,6 +66,7 @@ Resources:
                   - "sns:Publish"
                 Resource: "*"
 
+  # Lambda Function
   SendEmailLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -75,6 +80,7 @@ Resources:
         Variables:
           SNS_TOPIC_ARN: !Ref EmailSNSTopic
 
+  # SNS Topic
   EmailSNSTopic:
     Type: AWS::SNS::Topic
     Properties:
@@ -82,14 +88,23 @@ Resources:
         - Protocol: email
           Endpoint: samuelgiordano@live.com
 
+  # API Gateway Deployment with Throttling
   EmailApiGatewayDeployment:
     Type: AWS::ApiGateway::Deployment
     Properties:
       RestApiId: !Ref EmailApiGateway
       StageName: prod
+      Description: Deployment stage with rate limiting
+      StageDescription:
+        MethodSettings:
+          - ResourcePath: "/*"
+            HttpMethod: "*"
+            ThrottlingBurstLimit: 5
+            ThrottlingRateLimit: 10
     DependsOn:
       - EmailApiMethod
 
+  # Lambda Invoke Permission
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
