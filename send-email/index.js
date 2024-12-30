@@ -22,22 +22,19 @@ exports.handler = async (event) => {
       throw new Error('Invalid message');
     }
 
-    const message = {
-      default: `
-        Contact Form Submission
-        -------------------------
-        Name: ${validator.escape(body.name)}
-        Email: ${validator.escape(body.email)}
-        Subject: ${validator.escape(body.subject)}
-        Message: ${validator.escape(body.message)}
-      `,
-    };
+    const message = `
+      Contact Form Submission
+      -------------------------
+      Name: ${validator.escape(body.name)}
+      Email: ${validator.escape(body.email)}
+      Subject: ${validator.escape(body.subject)}
+      Message: ${validator.escape(body.message)}
+    `;
 
     const params = {
       Message: message,
       TopicArn: process.env.SNS_TOPIC_ARN,
-      Subject: 'New Contact Form Submission',
-      MessageStructure: 'raw'
+      Subject: 'New Contact Form Submission'
     };
 
     await sns.publish(params).promise();
