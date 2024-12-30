@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: 'AWS::Serverless-2016-10-31'
+Description: API for Sending Emails via SNS
+
+Resources:
+  EmailApiGateway:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: EmailAPI
+      Description: API to send emails
+
+  EmailApiResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt EmailApiGateway.RootResourceId
+      PathPart: send-email
+      RestApiId: !Ref EmailApiGateway
+
+  EmailApiMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      AuthorizationType: NONE
+      HttpMethod: POST
+      ResourceId: !Ref EmailApiResource
+      RestApiId: !Ref EmailApiGateway
+      Integration:
+        IntegrationHttpMethod: POST
+        Type: AWS_PROXY
+        Uri: !Sub
+          - arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SendEmailLambda.Arn}/invocations
+          - SendEmailLambda: !GetAtt SendEmailLambda.Arn
+
+  EmailLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service: "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      Policies:
+        - PolicyName: "EmailLambdaPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                  - "apigateway:POST"
+                  - "apigateway:PUT"
+                  - "apigateway:DELETE"
+                  - "apigateway:GET"
+                  - "apigateway:PATCH"
+                  - "lambda:InvokeFunction"
+                  - "lambda:GetFunctionConfiguration"
+                  - "lambda:UpdateFunctionCode"
+                  - "lambda:UpdateFunctionConfiguration"
+                  - "sns:Publish"
+                Resource: "*"
+
+  SendEmailLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: index.handler
+      Role: !GetAtt EmailLambdaRole.Arn
+      CodeUri: send-email/
+      Runtime: nodejs18.x
+      MemorySize: 128
+      Timeout: 5
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref EmailSNSTopic
+
+  EmailSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: samuelgiordano@live.com
+
+  EmailApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId: !Ref EmailApiGateway
+      StageName: prod
+    DependsOn:
+      - EmailApiMethod

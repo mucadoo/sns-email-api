@@ -1,0 +1,10 @@
+{
+  "name": "send-email",
+  "version": "1.0.0",
+  "main": "app.js",
+  "dependencies": {
+    "aws-sdk": "^2.1692.0"
+  },
+  "scripts": {},
+  "devDependencies": {}
+}
