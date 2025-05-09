@@ -67,7 +67,7 @@ Resources:
       Handler: index.handler
       Role: !GetAtt EmailLambdaRole.Arn
       CodeUri: send-email/
-      Runtime: nodejs18.x
+      Runtime: nodejs22.x
       MemorySize: 128
       Timeout: 5
       Environment:
